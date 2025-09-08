@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Binary Tree System</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f7f7f7; }
+    .container { max-width: 900px; margin: 30px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #ccc; padding: 32px; }
+    h1 { text-align: center; }
+    .options { display: flex; justify-content: center; gap: 24px; margin-bottom: 24px; }
+    .option-btn { padding: 12px 24px; font-size: 1.1em; border-radius: 6px; border: none; background: #0078d4; color: #fff; cursor: pointer; }
+    .option-btn.selected { background: #005fa3; }
+    .input-area { margin: 24px 0; text-align: center; }
+    .tree-canvas { display: flex; justify-content: center; margin: 32px 0; }
+    #tree-svg { background: #f0f4fa; border-radius: 8px; }
+    .infographic { background: #e9f5e9; border-radius: 8px; padding: 18px; margin-top: 32px; }
+    .expressions { display: flex; gap: 32px; justify-content: center; margin-bottom: 18px; }
+    .expr { background: #fff; border-radius: 6px; padding: 12px 18px; box-shadow: 0 1px 4px #ccc; }
+    .chart { display: flex; gap: 24px; justify-content: center; }
+    .chart-item { background: #fff; border-radius: 6px; padding: 12px 18px; box-shadow: 0 1px 4px #ccc; min-width: 120px; text-align: center; }
+    .true { color: #2e7d32; font-weight: bold; }
+    .false { color: #c62828; font-weight: bold; }
+    .hidden { display: none; }
+    input[type="text"] { font-size: 1.1em; padding: 8px; border-radius: 4px; border: 1px solid #ccc; width: 220px; }
+    button { font-size: 1em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Binary Tree System</h1>
+    <div class="options">
+      <button id="random-btn" class="option-btn">Random Data (Level Order)</button>
+      <button id="bst-btn" class="option-btn">Binary Search Tree</button>
+    </div>
+    <div id="random-area" class="input-area hidden">
+      <div id="random-prompt">Enter root node character:</div>
+      <input type="text" id="random-input" maxlength="1" autocomplete="off">
+  <button id="random-next">Space / Next</button>
+  <button id="random-undo">Undo/Back</button>
+  <button id="random-reset">Reset</button>
+  <button id="random-done">Tree Done</button>
+      <div id="random-level-info" style="margin-top:10px;"></div>
+    </div>
+    <div id="bst-area" class="input-area hidden">
+      <div>Enter keys (separated by commas, spaces, or newlines):</div>
+      <input type="text" id="bst-input" autocomplete="off">
+      <button id="bst-generate">Generate BST</button>
+      <div style="margin-top:16px;">
+        <input type="text" id="bst-delete-input" placeholder="Key to delete" style="width:120px;">
+        <button id="bst-delete">Delete</button>
+        <button id="bst-undo">Undo</button>
+        <button id="bst-reset">Reset</button>
+      </div>
+    </div>
+    <div class="tree-canvas" style="position:relative;">
+      <svg id="tree-svg" width="800" height="400" style="background:#f0f4fa; display:block;"></svg>
+      <div id="zoom-controls" style="position:absolute; top:12px; right:18px; z-index:2;">
+        <button id="zoom-in" title="Zoom In" style="font-size:1.5em; background:none; border:none; cursor:pointer;">🔍+</button>
+        <button id="zoom-out" title="Zoom Out" style="font-size:1.5em; background:none; border:none; cursor:pointer;">🔍-</button>
+      </div>
+    </div>
+    <div class="infographic">
+      <div class="expressions">
+        <div class="expr"><b>Prefix (Pre-order):</b> <span id="prefix"></span></div>
+        <div class="expr"><b>In-order:</b> <span id="inorder"></span></div>
+        <div class="expr"><b>Post-order:</b> <span id="postorder"></span></div>
+      </div>
+      <div class="chart">
+        <div class="chart-item">Full Binary Tree:<br><span id="full" class="false">False</span></div>
+        <div class="chart-item">Complete Binary Tree:<br><span id="complete" class="false">False</span></div>
+        <div class="chart-item">Perfect Binary Tree:<br><span id="perfect" class="false">False</span></div>
+        <div class="chart-item">Balanced Binary Tree:<br><span id="balanced" class="false">False</span></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // --- Tree Model ---
+    class TreeNode {
+      constructor(val) {
+        this.val = val;
+        this.left = null;
+        this.right = null;
+      }
+    }
+    let treeRoot = null;
+    let currentMode = null;
+    // --- UI Elements ---
+    const randomBtn = document.getElementById('random-btn');
+    const bstBtn = document.getElementById('bst-btn');
+    const randomArea = document.getElementById('random-area');
+    const bstArea = document.getElementById('bst-area');
+    const treeSvg = document.getElementById('tree-svg');
+    const prefixSpan = document.getElementById('prefix');
+    const inorderSpan = document.getElementById('inorder');
+    const postorderSpan = document.getElementById('postorder');
+    const fullSpan = document.getElementById('full');
+    const completeSpan = document.getElementById('complete');
+    const perfectSpan = document.getElementById('perfect');
+    const balancedSpan = document.getElementById('balanced');
+    // --- Option Selection ---
+    randomBtn.onclick = () => {
+      currentMode = 'random';
+      randomBtn.classList.add('selected');
+      bstBtn.classList.remove('selected');
+      randomArea.classList.remove('hidden');
+      bstArea.classList.add('hidden');
+      resetTree();
+      startRandomInput();
+    };
+  // let zoomLevel = 1; // removed duplicate declaration
+    function setZoom() {
+      // Use viewBox to scale SVG content
+      const baseW = 800, baseH = 400;
+      const w = baseW / zoomLevel, h = baseH / zoomLevel;
+      treeSvg.setAttribute('viewBox', `${400-w/2} ${200-h/2} ${w} ${h}`);
+    }
+    document.getElementById('zoom-in').onclick = () => {
+      zoomLevel = Math.min(2.5, zoomLevel + 0.25);
+      setZoom();
+    };
+    document.getElementById('zoom-out').onclick = () => {
+      zoomLevel = Math.max(0.5, zoomLevel - 0.25);
+      setZoom();
+    };
+    setZoom();
+    bstBtn.onclick = () => {
+      currentMode = 'bst';
+      bstBtn.classList.add('selected');
+      randomBtn.classList.remove('selected');
+      bstArea.classList.remove('hidden');
+      randomArea.classList.add('hidden');
+      resetTree();
+    };
+    // --- Random Data (Level Order) ---
+    let randomQueue = [];
+    let randomLevel = 0;
+    let randomNodes = [];
+    let randomHistory = [];
+    let randomCurrent = null;
+    let randomChildDir = 'left'; // 'left' or 'right'
+    function startRandomInput() {
+      document.getElementById('random-prompt').textContent = 'Enter root node character:';
+      document.getElementById('random-input').value = '';
+      document.getElementById('random-level-info').textContent = '';
+      randomQueue = [];
+      randomLevel = 0;
+      randomNodes = [];
+      randomHistory = [];
+      treeRoot = null;
+      randomCurrent = null;
+      randomChildDir = 'left';
+      randomInputDone = false;
+      updateAll();
+    }
+    document.getElementById('random-next').onclick = () => {
+      handleRandomInput();
+    };
+    let randomInputDone = false;
+    document.getElementById('random-done').onclick = () => {
+      randomInputDone = true;
+      document.getElementById('random-prompt').textContent = 'Tree complete!';
+      document.getElementById('random-level-info').textContent = '';
+      randomCurrent = null;
+      updateAll();
+    };
+    document.getElementById('random-input').addEventListener('keydown', function(e) {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        handleRandomInput();
+      }
+    });
+    document.getElementById('random-reset').onclick = () => {
+      startRandomInput();
+    };
+    document.getElementById('random-undo').onclick = () => {
+      handleRandomUndo();
+    };
+    function handleRandomInput() {
+      if (randomInputDone) return;
+      const input = document.getElementById('random-input').value.trim();
+      if (!treeRoot) {
+        if (input) {
+          treeRoot = new TreeNode(input);
+          randomQueue = [treeRoot];
+          randomNodes = [treeRoot];
+          randomCurrent = treeRoot;
+          randomChildDir = 'left';
+          document.getElementById('random-prompt').textContent = 'Level 1: Enter left of root:';
+          document.getElementById('random-input').value = '';
+          document.getElementById('random-level-info').textContent = 'Current node: left of root';
+          randomHistory.push({parent: null, dir: 'root', node: treeRoot});
+        }
+        updateAll();
+        return;
+      }
+      // Level order input
+      let current = randomQueue[0];
+      let nextPrompt = '';
+      if (randomChildDir === 'left') {
+        if (input) {
+          current.left = new TreeNode(input);
+          randomQueue.push(current.left);
+          randomNodes.push(current.left);
+          randomHistory.push({parent: current, dir: 'left', node: current.left});
+        } else {
+          randomHistory.push({parent: current, dir: 'left', node: null});
+        }
+        randomChildDir = 'right';
+        nextPrompt = `Level ${randomLevel+1}: Enter right of ${current.val}:`;
+        document.getElementById('random-level-info').textContent = `Current node: right of ${current.val}`;
+      } else if (randomChildDir === 'right') {
+        if (input) {
+          current.right = new TreeNode(input);
+          randomQueue.push(current.right);
+          randomNodes.push(current.right);
+          randomHistory.push({parent: current, dir: 'right', node: current.right});
+        } else {
+          randomHistory.push({parent: current, dir: 'right', node: null});
+        }
+        // Move to next node in queue
+        randomQueue.shift();
+        randomLevel++;
+        if (randomQueue.length > 0) {
+          nextPrompt = `Level ${randomLevel+1}: Enter left of ${randomQueue[0].val}:`;
+          document.getElementById('random-level-info').textContent = `Current node: left of ${randomQueue[0].val}`;
+          randomCurrent = randomQueue[0];
+          randomChildDir = 'left';
+        } else {
+          nextPrompt = 'Tree complete!';
+          document.getElementById('random-level-info').textContent = '';
+          randomCurrent = null;
+        }
+      }
+      document.getElementById('random-prompt').textContent = nextPrompt;
+      document.getElementById('random-input').value = '';
+      updateAll();
+    }
+    function handleRandomUndo() {
+      if (!treeRoot || randomHistory.length === 0) return;
+      let last = randomHistory.pop();
+      if (last.dir === 'root') {
+        startRandomInput();
+        return;
+      }
+      if (last.dir === 'left') {
+        if (last.node) {
+          // Remove from parent's left and from queue
+          let idx = randomQueue.indexOf(last.node);
+          if (idx !== -1) randomQueue.splice(idx, 1);
+          let nidx = randomNodes.indexOf(last.node);
+          if (nidx !== -1) randomNodes.splice(nidx, 1);
+          last.parent.left = null;
+        }
+        randomChildDir = 'left';
+        randomCurrent = last.parent;
+        document.getElementById('random-prompt').textContent = `Level ${randomLevel+1}: Enter left of ${last.parent.val}:`;
+        document.getElementById('random-level-info').textContent = `Current node: left of ${last.parent.val}`;
+      } else if (last.dir === 'right') {
+        if (last.node) {
+          let idx = randomQueue.indexOf(last.node);
+          if (idx !== -1) randomQueue.splice(idx, 1);
+          let nidx = randomNodes.indexOf(last.node);
+          if (nidx !== -1) randomNodes.splice(nidx, 1);
+          last.parent.right = null;
+        }
+        randomChildDir = 'right';
+        randomCurrent = last.parent;
+        document.getElementById('random-prompt').textContent = `Level ${randomLevel+1}: Enter right of ${last.parent.val}:`;
+        document.getElementById('random-level-info').textContent = `Current node: right of ${last.parent.val}`;
+      }
+      document.getElementById('random-input').value = '';
+      updateAll();
+    }
+    // --- BST Input ---
+    document.getElementById('bst-generate').onclick = () => {
+      const keys = document.getElementById('bst-input').value.split(/[,	\s]+/).map(x => x.trim()).filter(x => x);
+      treeRoot = null;
+      bstUndoStack = [];
+      for (const key of keys) {
+        treeRoot = bstInsert(treeRoot, key);
+      }
+      updateAll();
+    };
+    document.getElementById('bst-reset').onclick = () => {
+      treeRoot = null;
+      bstUndoStack = [];
+      document.getElementById('bst-input').value = '';
+      document.getElementById('bst-delete-input').value = '';
+      updateAll();
+    };
+
+    let bstUndoStack = [];
+    document.getElementById('bst-delete').onclick = () => {
+      const key = document.getElementById('bst-delete-input').value.trim();
+      if (!key) return;
+      // Save current tree for undo
+      bstUndoStack.push(cloneTree(treeRoot));
+      treeRoot = bstDelete(treeRoot, key);
+      updateAll();
+    };
+
+    document.getElementById('bst-undo').onclick = () => {
+      if (bstUndoStack.length > 0) {
+        treeRoot = bstUndoStack.pop();
+        updateAll();
+      }
+    };
+
+    function cloneTree(node) {
+      if (!node) return null;
+      let newNode = new TreeNode(node.val);
+      newNode.left = cloneTree(node.left);
+      newNode.right = cloneTree(node.right);
+      return newNode;
+    }
+
+    function bstDelete(root, val) {
+      let v1 = isNaN(Number(val)) ? val : Number(val);
+      if (!root) return null;
+      let v2 = isNaN(Number(root.val)) ? root.val : Number(root.val);
+      if (v1 < v2) {
+        root.left = bstDelete(root.left, val);
+      } else if (v1 > v2) {
+        root.right = bstDelete(root.right, val);
+      } else {
+        // Node to delete found
+        if (!root.left && !root.right) {
+          // Case 1: No children
+          return null;
+        } else if (!root.left) {
+          // Case 2: Only right child
+          return root.right;
+        } else if (!root.right) {
+          // Case 2: Only left child
+          return root.left;
+        } else {
+          // Case 3: Two children
+          // Use minimum node from right subtree
+          let minNode = root.right;
+          while (minNode.left) minNode = minNode.left;
+          root.val = minNode.val;
+          root.right = bstDelete(root.right, minNode.val);
+        }
+      }
+      return root;
+    }
+    function bstInsert(root, val) {
+      // Try to compare as numbers if both are numeric
+      let v1 = isNaN(Number(val)) ? val : Number(val);
+      let v2 = root ? (isNaN(Number(root.val)) ? root.val : Number(root.val)) : null;
+      if (!root) return new TreeNode(val);
+      if (v1 < v2) {
+        root.left = bstInsert(root.left, val);
+      } else if (v1 > v2) {
+        root.right = bstInsert(root.right, val);
+      } else {
+        // Duplicate: place to the right, and if right exists, go left of right
+        if (!root.right) {
+          root.right = new TreeNode(val);
+        } else {
+          root.right.left = bstInsert(root.right.left, val);
+        }
+      }
+      return root;
+    }
+    // --- Tree Drawing ---
+    function updateAll() {
+      drawTree(treeRoot);
+      updateExpressions(treeRoot);
+      updateChart(treeRoot);
+  setZoom();
+    }
+    // --- Zoom controls ---
+    let zoomLevel = 1;
+    document.getElementById('zoom-in').onclick = () => {
+      zoomLevel = Math.min(2.5, zoomLevel + 0.25);
+      treeSvg.style.transform = `scale(${zoomLevel})`;
+    };
+    document.getElementById('zoom-out').onclick = () => {
+      zoomLevel = Math.max(0.5, zoomLevel - 0.25);
+      treeSvg.style.transform = `scale(${zoomLevel})`;
+    };
+
+    function drawTree(root) {
+      treeSvg.innerHTML = '';
+      if (!root) return;
+      // Calculate positions recursively for proper left/right placement
+      const nodeRadius = 22;
+      const vGap = 70;
+      const hGapBase = 120; // base horizontal gap
+      let positions = new Map();
+      let maxDepth = 0;
+      function setPositions(node, depth, x, spread) {
+        if (!node) return;
+        maxDepth = Math.max(maxDepth, depth);
+        positions.set(node, { x, y: 40 + depth * vGap });
+        // For left, go left by spread; for right, go right by spread
+        setPositions(node.left, depth + 1, x - spread, spread / 2);
+        setPositions(node.right, depth + 1, x + spread, spread / 2);
+      }
+      // Center root, spread children
+      setPositions(root, 0, 400, hGapBase * Math.pow(0.7, 0));
+      // Draw lines
+      for (const [node, pos] of positions.entries()) {
+        if (node.left && positions.has(node.left)) {
+          const child = positions.get(node.left);
+          treeSvg.innerHTML += `<line x1="${pos.x}" y1="${pos.y}" x2="${child.x}" y2="${child.y}" stroke="#555" stroke-width="2" />`;
+        }
+        if (node.right && positions.has(node.right)) {
+          const child = positions.get(node.right);
+          treeSvg.innerHTML += `<line x1="${pos.x}" y1="${pos.y}" x2="${child.x}" y2="${child.y}" stroke="#555" stroke-width="2" />`;
+        }
+      }
+      // Draw nodes
+      for (const [node, pos] of positions.entries()) {
+        treeSvg.innerHTML += `<circle cx="${pos.x}" cy="${pos.y}" r="${nodeRadius}" fill="#0078d4" stroke="#fff" stroke-width="3" />`;
+        treeSvg.innerHTML += `<text x="${pos.x}" y="${pos.y+6}" text-anchor="middle" font-size="18" fill="#fff">${node.val}</text>`;
+      }
+      // Predictor node (for random input mode)
+      if (currentMode === 'random' && randomCurrent && !randomInputDone) {
+        let parent = randomCurrent;
+        let dir = randomChildDir;
+        let parentPos = positions.get(parent);
+        if (parentPos) {
+          // Place predictor below parent, offset left/right
+          let spread = hGapBase * Math.pow(0.7, parentPos.y / vGap);
+          let childX = dir === 'left' ? parentPos.x - spread : parentPos.x + spread;
+          let childY = parentPos.y + vGap;
+          treeSvg.innerHTML += `<circle cx="${childX}" cy="${childY}" r="${nodeRadius}" fill="#b2dfdb" stroke="#0078d4" stroke-width="3" opacity="0.7" />`;
+          treeSvg.innerHTML += `<text x="${childX}" y="${childY+6}" text-anchor="middle" font-size="18" fill="#0078d4">?</text>`;
+          treeSvg.innerHTML += `<line x1="${parentPos.x}" y1="${parentPos.y}" x2="${childX}" y2="${childY}" stroke="#0078d4" stroke-width="2" stroke-dasharray="4" />`;
+        }
+      }
+    }
+    // --- Expressions ---
+    function updateExpressions(root) {
+      prefixSpan.textContent = preorder(root).join(' ');
+      inorderSpan.textContent = inorder(root).join(' ');
+      postorderSpan.textContent = postorder(root).join(' ');
+    }
+    function preorder(node) {
+      if (!node) return [];
+      return [node.val, ...preorder(node.left), ...preorder(node.right)];
+    }
+    function inorder(node) {
+      if (!node) return [];
+      return [...inorder(node.left), node.val, ...inorder(node.right)];
+    }
+    function postorder(node) {
+      if (!node) return [];
+      return [...postorder(node.left), ...postorder(node.right), node.val];
+    }
+    // --- Chart ---
+    function updateChart(root) {
+      fullSpan.textContent = isFull(root) ? 'True' : 'False';
+      fullSpan.className = isFull(root) ? 'true' : 'false';
+      completeSpan.textContent = isComplete(root) ? 'True' : 'False';
+      completeSpan.className = isComplete(root) ? 'true' : 'false';
+      perfectSpan.textContent = isPerfect(root) ? 'True' : 'False';
+      perfectSpan.className = isPerfect(root) ? 'true' : 'false';
+      balancedSpan.textContent = isBalanced(root) ? 'True' : 'False';
+      balancedSpan.className = isBalanced(root) ? 'true' : 'false';
+    }
+    function isFull(node) {
+      if (!node) return true;
+      if (!node.left && !node.right) return true;
+      if (node.left && node.right) return isFull(node.left) && isFull(node.right);
+      return false;
+    }
+    function isComplete(root) {
+      if (!root) return true;
+      const queue = [root];
+      let end = false;
+      while (queue.length) {
+        const node = queue.shift();
+        if (node.left) {
+          if (end) return false;
+          queue.push(node.left);
+        } else {
+          end = true;
+        }
+        if (node.right) {
+          if (end) return false;
+          queue.push(node.right);
+        } else {
+          end = true;
+        }
+      }
+      return true;
+    }
+    function isPerfect(root) {
+      function depth(node) {
+        let d = 0;
+        while (node) {
+          d++;
+          node = node.left;
+        }
+        return d;
+      }
+      function check(node, d, level=1) {
+        if (!node) return true;
+        if (!node.left && !node.right) return d === level;
+        if (!node.left || !node.right) return false;
+        return check(node.left, d, level+1) && check(node.right, d, level+1);
+      }
+      const d = depth(root);
+      return check(root, d);
+    }
+    function isBalanced(root) {
+      function check(node) {
+        if (!node) return [true, 0];
+        const [lbal, lh] = check(node.left);
+        const [rbal, rh] = check(node.right);
+        const bal = lbal && rbal && Math.abs(lh - rh) <= 1;
+        return [bal, 1 + Math.max(lh, rh)];
+      }
+      return check(root)[0];
+    }
+    function resetTree() {
+      treeRoot = null;
+      treeSvg.innerHTML = '';
+      prefixSpan.textContent = '';
+      inorderSpan.textContent = '';
+      postorderSpan.textContent = '';
+      fullSpan.textContent = 'False';
+      completeSpan.textContent = 'False';
+      perfectSpan.textContent = 'False';
+      balancedSpan.textContent = 'False';
+      fullSpan.className = 'false';
+      completeSpan.className = 'false';
+      perfectSpan.className = 'false';
+      balancedSpan.className = 'false';
+    }
+  </script>
+</body>
+</html>
