@@ -108,7 +108,7 @@
       resetTree();
       startRandomInput();
     };
-  // let zoomLevel = 1; // removed duplicate declaration
+  let zoomLevel = 1;
     function setZoom() {
       // Use viewBox to scale SVG content
       const baseW = 800, baseH = 400;
@@ -372,7 +372,7 @@
   setZoom();
     }
     // --- Zoom controls ---
-    let zoomLevel = 1;
+  // let zoomLevel = 1; // removed duplicate declaration
     document.getElementById('zoom-in').onclick = () => {
       zoomLevel = Math.min(2.5, zoomLevel + 0.25);
       treeSvg.style.transform = `scale(${zoomLevel})`;
